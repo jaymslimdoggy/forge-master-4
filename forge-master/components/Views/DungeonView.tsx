@@ -422,11 +422,11 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
                             return (
                             <div key={i} className={`h-16 bg-zinc-800 border rounded-lg p-2 flex items-center gap-3 relative overflow-hidden group quality-${item.quality} ${isEquip ? 'border-zinc-600' : 'border-zinc-700'}`}>
                                 <div className={`w-12 h-12 rounded bg-black/40 flex items-center justify-center text-2xl quality-${item.quality} shrink-0`}>
-                                    <i className={`fas ${isEquip ? (item.type === 'WEAPON' ? 'fa-khanda' : 'fa-shield-alt') : (item.isDungeonOnly ? 'fa-gem' : 'fa-cube')}`}></i>
+                                    <i className={`fas ${isEquip ? ((item as any).type === 'WEAPON' ? 'fa-khanda' : 'fa-shield-alt') : ((item as any).isDungeonOnly ? 'fa-gem' : 'fa-cube')}`}></i>
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className={`font-bold text-sm truncate quality-${item.quality}`}>{item.name}</div>
-                                    <div className="text-xs opacity-60 truncate font-bold text-zinc-500 uppercase mt-0.5">{isEquip ? (item.type==='WEAPON'?'武器':'防具') : '材料'}</div>
+                                    <div className="text-xs opacity-60 truncate font-bold text-zinc-500 uppercase mt-0.5">{isEquip ? ((item as any).type==='WEAPON'?'武器':'防具') : '材料'}</div>
                                 </div>
                             </div>
                             )

@@ -1075,7 +1075,7 @@ const App: React.FC = () => {
                               return (
                                   <button key={idx} onClick={() => handleSwapLoot(idx)} className={`aspect-square bg-zinc-800 rounded-xl border-2 border-zinc-700 hover:border-white hover:bg-zinc-700 transition flex flex-col items-center justify-center p-1 relative group quality-${item.quality}`}>
                                       <div className={`text-2xl mb-1 quality-${item.quality}`}>
-                                          <i className={`fas ${isEquip ? (item.type === 'WEAPON' ? 'fa-khanda' : 'fa-shield-alt') : (item.isDungeonOnly ? 'fa-gem' : 'fa-cube')}`}></i>
+                                          <i className={`fas ${isEquip ? ((item as any).type === 'WEAPON' ? 'fa-khanda' : 'fa-shield-alt') : ((item as any).isDungeonOnly ? 'fa-gem' : 'fa-cube')}`}></i>
                                       </div>
                                       <div className="text-[10px] font-bold text-center w-full truncate px-1 opacity-80">{item.name}</div>
                                       <div className="absolute inset-0 bg-red-500/80 text-white font-black text-xs opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity backdrop-blur-sm">
