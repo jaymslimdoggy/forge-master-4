@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { Player, Quality, Equipment } from '../../types';
+import { Player, Quality, Equipment, Material } from '../../types';
 import { MATERIALS } from '../../constants';
 
 interface ShopViewProps {
   player: Player;
-  onBuyMaterial: (mat: any, slotIndex?: number) => void;
+  onBuyMaterial: (mat: Material, slotIndex?: number) => void;
   onSellItem: (item: Equipment) => void;
 }
 
@@ -17,7 +17,7 @@ export const ShopView: React.FC<ShopViewProps> = ({ player, onBuyMaterial, onSel
     return 1;
   };
 
-  const renderMaterialCard = (mat: any, isLocked: boolean, unlockLevel: number, isLimited: boolean = false, isSoldOut: boolean = false, slotIndex: number = -1) => {
+  const renderMaterialCard = (mat: Material, isLocked: boolean, unlockLevel: number, isLimited: boolean = false, isSoldOut: boolean = false, slotIndex: number = -1) => {
       return (
         <div key={isLimited ? `limited-${slotIndex}` : mat.id} className={`bg-zinc-900 p-4 rounded-xl border flex flex-col items-center text-center shadow-lg relative overflow-hidden group ${isLocked || isSoldOut ? 'border-zinc-800 opacity-70 grayscale' : 'border-zinc-800'}`}>
             <div className={`absolute top-0 left-0 w-1.5 quality-${mat.quality} bg-current opacity-80`}></div>

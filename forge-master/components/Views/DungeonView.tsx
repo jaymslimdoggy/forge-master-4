@@ -67,10 +67,12 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
     const rareChanceBonus = dungeon ? Math.min(1.0, dungeon.depth / 30.0) : 0;
     const dropRateBonus = Math.floor(rareChanceBonus * 100);
 
-    // Helper to extract taunt safely
+    // Helper to extract taunt safely - Fixed for Strict Null Checks
     const getDeathTaunt = () => {
-        if (!dungeon?.lastEventResult?.desc) return { title: '战斗失败', quote: '...' };
-        const parts = dungeon.lastEventResult.desc.split(' - ');
+        const desc = dungeon?.lastEventResult?.desc;
+        if (!desc) return { title: '战斗失败', quote: '...' };
+        
+        const parts = desc.split(' - ');
         return {
             title: parts[0] || '战斗失败',
             quote: parts[1] || '...'
