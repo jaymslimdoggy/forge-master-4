@@ -599,11 +599,12 @@ export const finalizeForge = (session: ForgeSession, type: EquipmentType, player
   
   for (let i = 0; i < statCount; i++) {
       const typeKey = shuffledPool[i % shuffledPool.length];
+      
+      const config = STAT_CONFIG[typeKey as keyof typeof STAT_CONFIG];
       const levelBase = 10 * Math.pow(1.3, playerLevel - 1);
       const qMult = resultQuality === Quality.Common ? 1.0 : resultQuality === Quality.Refined ? 1.3 : 1.6;
       const scoreBonus = Math.min(0.5, qualityScore / 2500); 
       
-      const config = STAT_CONFIG[typeKey];
       const statRatio = config.base / 10;
       
       let finalVal = 0;
