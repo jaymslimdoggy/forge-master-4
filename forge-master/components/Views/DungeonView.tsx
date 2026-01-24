@@ -67,6 +67,16 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
     const rareChanceBonus = dungeon ? Math.min(1.0, dungeon.depth / 30.0) : 0;
     const dropRateBonus = Math.floor(rareChanceBonus * 100);
 
+    // Helper to extract taunt safely
+    const getDeathTaunt = () => {
+        if (!dungeon?.lastEventResult?.desc) return { title: '战斗失败', quote: '...' };
+        const parts = dungeon.lastEventResult.desc.split(' - ');
+        return {
+            title: parts[0] || '战斗失败',
+            quote: parts[1] || '...'
+        };
+    };
+
     if (!dungeon) {
         return (
              <div className="h-full flex flex-col items-center justify-center animate-fadeIn bg-zinc-950 p-8 rounded-2xl border border-red-900/30 relative overflow-hidden">
@@ -187,6 +197,8 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
              </div>
         )
     }
+
+    const taunt = getDeathTaunt();
 
     return (
         <div className="absolute inset-0 z-50 bg-zinc-950 flex flex-col animate-fadeIn">
@@ -325,7 +337,7 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
                                 <div className="text-sm text-zinc-500 font-bold mt-1">正在交战...</div>
                             </div>
 
-                            {!dungeon.battle.isStarted ? <button onClick={onStartBattle} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xl shadow-lg transition active:scale-95 uppercase tracking-widest border border-red-400/20">开始战斗</button> : dungeon.battle.isFinished ? <div className="flex gap-3">{dungeon.battle.victory ? <><button onClick={() => onProceedDungeon()} className="flex-[2] py-4 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl text-xl shadow-lg transition active:scale-95 border border-green-400/20">继续探索 <i className="fas fa-arrow-right ml-2"></i></button><button onClick={onWithdraw} className="flex-1 py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-black rounded-xl text-lg shadow-lg transition active:scale-95 border border-yellow-400/20">撤退</button></> : <button onClick={onHandleDeath} className="w-full p-6 bg-zinc-950 hover:bg-zinc-900 text-red-500 rounded-2xl shadow-[0_0_30px_rgba(220,38,38,0.15)] transition active:scale-95 border-2 border-red-900/60 flex flex-col items-center gap-3 h-auto whitespace-normal group relative overflow-hidden"><div className="absolute inset-0 bg-red-900/10 group-hover:bg-red-900/20 transition-colors"></div><div className="text-3xl font-black uppercase relative z-10 flex items-center gap-3"><i className="fas fa-skull"></i> {dungeon.lastEventResult ? dungeon.lastEventResult.desc.split(' - ')[0] : '战斗失败'}</div><div className="text-lg font-bold text-zinc-500 italic leading-relaxed max-w-[95%] relative z-10 border-t border-red-900/30 pt-3 mt-1">"{dungeon.lastEventResult ? (dungeon.lastEventResult.desc.split(' - ')[1] || '...') : '...'}"</div><div className="text-xs text-red-800 mt-4 font-bold uppercase tracking-[0.2em] relative z-10 opacity-70 group-hover:opacity-100 transition-opacity">点击任意处离开</div></button>}</div> : <div className="text-center text-zinc-400 font-bold animate-pulse text-lg py-2">战斗进行中...</div>}
+                            {!dungeon.battle.isStarted ? <button onClick={onStartBattle} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xl shadow-lg transition active:scale-95 uppercase tracking-widest border border-red-400/20">开始战斗</button> : dungeon.battle.isFinished ? <div className="flex gap-3">{dungeon.battle.victory ? <><button onClick={() => onProceedDungeon()} className="flex-[2] py-4 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl text-xl shadow-lg transition active:scale-95 border border-green-400/20">继续探索 <i className="fas fa-arrow-right ml-2"></i></button><button onClick={onWithdraw} className="flex-1 py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-black rounded-xl text-lg shadow-lg transition active:scale-95 border border-yellow-400/20">撤退</button></> : <button onClick={onHandleDeath} className="w-full p-6 bg-zinc-950 hover:bg-zinc-900 text-red-500 rounded-2xl shadow-[0_0_30px_rgba(220,38,38,0.15)] transition active:scale-95 border-2 border-red-900/60 flex flex-col items-center gap-3 h-auto whitespace-normal group relative overflow-hidden"><div className="absolute inset-0 bg-red-900/10 group-hover:bg-red-900/20 transition-colors"></div><div className="text-3xl font-black uppercase relative z-10 flex items-center gap-3"><i className="fas fa-skull"></i> {taunt.title}</div><div className="text-lg font-bold text-zinc-500 italic leading-relaxed max-w-[95%] relative z-10 border-t border-red-900/30 pt-3 mt-1">"{taunt.quote}"</div><div className="text-xs text-red-800 mt-4 font-bold uppercase tracking-[0.2em] relative z-10 opacity-70 group-hover:opacity-100 transition-opacity">点击任意处离开</div></button>}</div> : <div className="text-center text-zinc-400 font-bold animate-pulse text-lg py-2">战斗进行中...</div>}
                         </div>
                     ) : dungeon.isDead ? (
                         <div className="w-full max-w-lg bg-zinc-900/90 border border-red-900 rounded-3xl p-8 backdrop-blur shadow-2xl text-center animate-bounce-in relative overflow-hidden">
@@ -334,15 +346,15 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
                              <div className="text-7xl text-red-600 mb-6 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]"><i className="fas fa-skull"></i></div>
                              
                              <h2 className="text-4xl font-black text-white mb-2 uppercase tracking-widest drop-shadow-md">
-                                 {dungeon.lastEventResult ? dungeon.lastEventResult.title : '探险失败'}
+                                 {taunt.title}
                              </h2>
                              
                              <div className="bg-black/40 rounded-xl p-4 border border-red-900/50 mb-8">
                                  <div className="text-red-400 font-bold text-lg mb-2">
-                                     {dungeon.lastEventResult ? dungeon.lastEventResult.desc.split(' - ')[0] : '死因不明'}
+                                     {taunt.title}
                                  </div>
                                  <div className="text-zinc-400 text-sm italic">
-                                     "{dungeon.lastEventResult ? dungeon.lastEventResult.desc.split(' - ')[1] || '...' : '...'}"
+                                     "{taunt.quote}"
                                  </div>
                              </div>
 
