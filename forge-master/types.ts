@@ -19,14 +19,16 @@ export type MaterialEffectType =
   | 'SPECIAL_DEATH_SAVE'
   | 'SPECIAL_POLISH_BUFF'
   | 'SPECIAL_MIRACLE'
-  | 'SPECIAL_LIGHT_MULTIHIT'; // New Effect
+  | 'SPECIAL_LIGHT_MULTIHIT'
+  | 'SPECIAL_QUENCH_HEAT_RISE' // New: Sulfur (Red Heat Support)
+  | 'SPECIAL_ZERO_TEMP_BUFF';  // New: Zero (Cryo Support)
 
 export interface Material {
   id: string;
   quality: Quality;
   name: string;
   price: number;
-  effectType: MaterialEffectType;
+  effectType: MaterialEffectType | 'NONE'; // Added NONE for Herbs
   effectValue: number;
   description: string;
   isDungeonOnly?: boolean;
@@ -82,6 +84,11 @@ export interface Player {
   }[];
   itemsSoldSinceRestock: number;
   hasSeenForgeTutorial?: boolean;
+  // Good Deed Buffs (Persistent)
+  persistentBuffs: {
+      shopDiscount: boolean; // Next buy 50% off
+      forgeBonus: boolean;   // Next forge score +50%
+  };
 }
 
 export interface ForgeSession {
@@ -92,6 +99,7 @@ export interface ForgeSession {
   qualityScore: number;
   costModifier: number;
   scoreMultiplier: number;
+  materialTierBonus: number; // New: Multiplier derived from total material quality
   turnCount: number;
   logs: string[];
   status: 'ACTIVE' | 'SUCCESS' | 'FAILURE';
@@ -158,6 +166,12 @@ export interface DungeonState {
   blessing: Blessing | null;
   streak: number;
   starvationDebuff: boolean;
+  injuredDebuff: boolean; // New: Traumatic Injury (Def -30%)
+  // Dungeon specific buffs
+  dungeonBuffs: {
+      rareDropBoost: boolean; // Increased rare drop chance
+      deathProtection: boolean; // Keep items on death
+  };
   log: string[];
   isDead: boolean;
   currentEvent: string;

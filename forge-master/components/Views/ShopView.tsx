@@ -5,11 +5,13 @@ import { MATERIALS } from '../../constants';
 
 interface ShopViewProps {
   player: Player;
+  groupedMaterials?: { mat: Material, count: number, instances: Material[] }[]; // Passed from App
   onBuyMaterial: (mat: Material, slotIndex?: number) => void;
   onSellItem: (item: Equipment) => void;
+  onSellMaterial?: (mat: Material) => void;
 }
 
-export const ShopView: React.FC<ShopViewProps> = ({ player, onBuyMaterial, onSellItem }) => {
+export const ShopView: React.FC<ShopViewProps> = ({ player, groupedMaterials = [], onBuyMaterial, onSellItem, onSellMaterial }) => {
   const getMaterialUnlockLevel = (quality: Quality) => {
     if (quality === Quality.Common) return 1;
     if (quality === Quality.Refined) return 2;
@@ -17,7 +19,11 @@ export const ShopView: React.FC<ShopViewProps> = ({ player, onBuyMaterial, onSel
     return 1;
   };
 
+  const isDiscount = player.persistentBuffs.shopDiscount;
+
   const renderMaterialCard = (mat: Material, isLocked: boolean, unlockLevel: number, isLimited: boolean = false, isSoldOut: boolean = false, slotIndex: number = -1) => {
+      const price = isDiscount ? Math.floor(mat.price * 0.5) : mat.price;
+      
       return (
         <div key={isLimited ? `limited-${slotIndex}` : mat.id} className={`bg-zinc-900 p-4 rounded-xl border flex flex-col items-center text-center shadow-lg relative overflow-hidden group ${isLocked || isSoldOut ? 'border-zinc-800 opacity-70 grayscale' : 'border-zinc-800'}`}>
             <div className={`absolute top-0 left-0 w-1.5 quality-${mat.quality} bg-current opacity-80`}></div>
@@ -32,8 +38,9 @@ export const ShopView: React.FC<ShopViewProps> = ({ player, onBuyMaterial, onSel
             {isLocked ? (
                 <button disabled className="w-full py-2 bg-zinc-800 text-zinc-500 font-bold rounded-xl border border-zinc-700 text-sm flex items-center justify-center gap-2 mt-auto"><i className="fas fa-lock"></i><span>LV.{unlockLevel}</span></button>
             ) : (
-                <button onClick={() => onBuyMaterial(mat, slotIndex)} disabled={isSoldOut} className={`w-full py-2 ${isLimited ? 'bg-purple-900/20 border-purple-500/30 text-purple-300 hover:bg-purple-900/40' : 'bg-zinc-800 hover:bg-zinc-700 text-yellow-500 border-zinc-700'} font-bold rounded-xl border text-xl transition active:scale-95 flex items-center justify-center gap-2 mt-auto shadow-md disabled:opacity-50 disabled:grayscale`}>
-                    <i className="fas fa-coins text-sm"></i><span>{mat.price}</span>
+                <button onClick={() => onBuyMaterial(mat, slotIndex)} disabled={isSoldOut} className={`w-full py-2 ${isLimited ? 'bg-purple-900/20 border-purple-500/30 text-purple-300 hover:bg-purple-900/40' : 'bg-zinc-800 hover:bg-zinc-700 text-yellow-500 border-zinc-700'} font-bold rounded-xl border text-xl transition active:scale-95 flex items-center justify-center gap-2 mt-auto shadow-md disabled:opacity-50 disabled:grayscale relative`}>
+                    {isDiscount && !isSoldOut && !isLimited && <div className="absolute -top-3 -right-3 bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full animate-bounce">-50%</div>}
+                    <i className="fas fa-coins text-sm"></i><span>{price}</span>
                 </button>
             )}
         </div>
@@ -51,6 +58,13 @@ export const ShopView: React.FC<ShopViewProps> = ({ player, onBuyMaterial, onSel
 
   return (
      <div className="space-y-4 animate-fadeIn overflow-y-auto h-full pb-4 scrollbar-thin">
+     
+     {isDiscount && (
+         <div className="bg-yellow-500 text-black font-black text-center py-2 rounded-xl animate-pulse">
+             <i className="fas fa-tags mr-2"></i> 女神眷顾：下次购买半价！
+         </div>
+     )}
+
      <div className="bg-zinc-800 p-6 rounded-2xl border border-zinc-700">
       <h2 className="text-2xl mb-4 font-black flex items-center text-zinc-200 uppercase tracking-widest"><i className="fas fa-shopping-cart mr-3 text-green-500"></i> 基础供应</h2>
       
@@ -88,8 +102,30 @@ export const ShopView: React.FC<ShopViewProps> = ({ player, onBuyMaterial, onSel
          </div>
      </div>
 
+     {/* SELL MATERIALS SECTION */}
      <div className="bg-zinc-800 p-6 rounded-2xl border border-zinc-700">
-      <h3 className="text-lg font-black mb-4 text-zinc-300 uppercase tracking-widest">出售成品</h3>
+         <h3 className="text-lg font-black mb-4 text-zinc-300 uppercase tracking-widest flex items-center"><i className="fas fa-cubes mr-2"></i> 出售材料</h3>
+         <div className="grid grid-cols-3 gap-3">
+             {groupedMaterials.length > 0 ? groupedMaterials.map(({mat, count}) => (
+                 <div key={`${mat.name}_${mat.quality}`} className="bg-zinc-900 border border-zinc-700 rounded-xl p-3 flex flex-col items-center justify-between relative group shadow-sm hover:border-zinc-500 transition">
+                     <div className="absolute top-2 right-2 bg-zinc-800 text-xs font-mono font-black px-1.5 py-0.5 rounded text-white border border-zinc-600 z-10">x{count}</div>
+                     <div className="flex flex-col items-center w-full">
+                         <div className={`text-3xl mb-1 quality-${mat.quality}`}><i className={`fas ${mat.isDungeonOnly ? 'fa-gem' : 'fa-cube'}`}></i></div>
+                         <div className={`text-xs font-black quality-${mat.quality} truncate w-full text-center leading-tight`}>{mat.name}</div>
+                     </div>
+                     <button 
+                        onClick={() => onSellMaterial && onSellMaterial(mat)} 
+                        className="w-full mt-2 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-red-400 border border-zinc-700 hover:border-red-500/30 text-xs font-bold rounded-lg transition"
+                     >
+                         卖 {Math.floor(mat.price * 0.5)} G
+                     </button>
+                 </div>
+             )) : <div className="col-span-3 text-center text-zinc-600 italic text-sm py-4">暂无材料...</div>}
+         </div>
+     </div>
+
+     <div className="bg-zinc-800 p-6 rounded-2xl border border-zinc-700">
+      <h3 className="text-lg font-black mb-4 text-zinc-300 uppercase tracking-widest"><i className="fas fa-khanda mr-2"></i> 出售成品</h3>
       <div className="grid grid-cols-2 gap-4">
         {player.inventory.map(item => {
            const isEquipped = player.equippedWeapon?.id === item.id || player.equippedArmor?.id === item.id;

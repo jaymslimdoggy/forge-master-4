@@ -34,16 +34,21 @@ const App: React.FC = () => {
     unlockedFloors: [1], 
     unlockedTalents: [],
     maxScore: 0, 
+    // Nerfed Base Stats - Player is weak without gear
     baseStats: {
-      HP: 100,
-      ATK: 20,
-      DEF: 10,
+      HP: 60,
+      ATK: 5,
+      DEF: 0, 
       CRIT: 5,
       LIFESTEAL: 0
     },
     shopSlots: [], // To be populated
     itemsSoldSinceRestock: 0,
-    hasSeenForgeTutorial: false
+    hasSeenForgeTutorial: false,
+    persistentBuffs: {
+        shopDiscount: false,
+        forgeBonus: false
+    }
   };
 
   const [player, setPlayer] = useState<Player>(initialPlayerState);
@@ -71,7 +76,7 @@ const App: React.FC = () => {
   
   // 掉落逻辑：动态权重 (Sigmoid-like curve)
   // 避免高层全掉金色，保留基础材料需求
-  const getLootQualityByDepth = (depth: number): Quality => {
+  const getLootQualityByDepth = (depth: number, boostRare: boolean = false): Quality => {
       // 1. 计算金色概率 (Rare Chance)
       // 前10层极低 (0.5%)
       // 10层后开始线性增长，每层 +0.8%
@@ -82,6 +87,8 @@ const App: React.FC = () => {
           rareChance += (depth - 10) * 0.008;
       }
       rareChance = Math.min(0.50, rareChance); // 封顶 50%
+      
+      if (boostRare) rareChance = Math.min(0.80, rareChance * 2); // Double chance, cap 80%
 
       // 2. 计算绿色概率 (Refined Chance)
       // 基础 20%，随层数微涨，但主要空间被金色挤压
@@ -97,8 +104,9 @@ const App: React.FC = () => {
       return Quality.Common;
   };
 
-  const generateDungeonLoot = (depth: number) => {
-      const targetQuality = getLootQualityByDepth(depth);
+  const generateDungeonLoot = (depth: number, forceQuality?: Quality) => {
+      const rareBoost = dungeon?.dungeonBuffs.rareDropBoost || false;
+      const targetQuality = forceQuality || getLootQualityByDepth(depth, rareBoost);
 
       // 筛选掉落池：
       // 如果随到了 Common，我们剔除掉 m_ 系列的基础废料(太容易得)，
@@ -107,6 +115,9 @@ const App: React.FC = () => {
       // 而不是随处可见的黑铁(白)。
       
       let validPool = MATERIALS.filter(m => {
+          // Exclude Herbs (they are from Herb Patch only)
+          if (m.id.startsWith('h_')) return false;
+
           // 深度>10层后，不再掉落白色基础材料(商店有卖)
           if (depth > 10 && m.id.startsWith('m_') && m.quality === Quality.Common) return false;
           
@@ -115,10 +126,10 @@ const App: React.FC = () => {
       
       // 兜底
       if (validPool.length === 0) {
-          validPool = MATERIALS.filter(m => m.quality === targetQuality);
+          validPool = MATERIALS.filter(m => m.quality === targetQuality && !m.id.startsWith('h_'));
       }
       if (validPool.length === 0) {
-          validPool = MATERIALS;
+          validPool = MATERIALS.filter(m => !m.id.startsWith('h_'));
       }
       
       const mat = validPool[Math.floor(Math.random() * validPool.length)];
@@ -128,6 +139,8 @@ const App: React.FC = () => {
   // 黑市逻辑：只卖好东西（特殊材料 或 非白色基础材料）
   const getBlackMarketItem = () => {
       const validPool = MATERIALS.filter(m => {
+          // Exclude Herbs
+          if (m.id.startsWith('h_')) return false;
           // 排除白色基础材料
           if (m.id.startsWith('m_') && m.quality === Quality.Common) return false;
           return true;
@@ -167,6 +180,11 @@ const App: React.FC = () => {
         // Migration for Tutorial
         if (parsed.hasSeenForgeTutorial === undefined) {
             parsed.hasSeenForgeTutorial = false;
+        }
+
+        // Migration for Good Deed
+        if (!parsed.persistentBuffs) {
+            parsed.persistentBuffs = { shopDiscount: false, forgeBonus: false };
         }
         
         setPlayer({ ...initialPlayerState, ...parsed });
@@ -245,6 +263,9 @@ const App: React.FC = () => {
 
     let scoreMult = 1.0;
     if (player.unlockedTalents.includes('t_qual_5')) scoreMult += 0.30;
+    
+    // Good Deed Bonus
+    if (player.persistentBuffs.forgeBonus) scoreMult += 0.50;
 
     forgeSlots.forEach(s => {
       if (s) {
@@ -254,7 +275,7 @@ const App: React.FC = () => {
       }
     });
     return { durability, costRed, scoreMult };
-  }, [forgeSlots, player.level, player.unlockedTalents]);
+  }, [forgeSlots, player.level, player.unlockedTalents, player.persistentBuffs.forgeBonus]);
 
   // Supply Logic Memoization
   const supplyLogic = useMemo(() => {
@@ -305,7 +326,10 @@ const App: React.FC = () => {
   };
 
   const buyMaterial = (mat: Material, slotIndex: number = -1) => {
-    if (player.gold >= mat.price) {
+    const isDiscount = player.persistentBuffs.shopDiscount;
+    const price = isDiscount ? Math.floor(mat.price * 0.5) : mat.price;
+
+    if (player.gold >= price) {
       
       let newSlots = [...player.shopSlots];
       if (slotIndex >= 0) {
@@ -315,13 +339,70 @@ const App: React.FC = () => {
 
       setPlayer(prev => ({
         ...prev,
-        gold: prev.gold - mat.price,
+        gold: prev.gold - price,
         materials: [...prev.materials, { ...mat, id: Math.random().toString() }],
-        shopSlots: newSlots
+        shopSlots: newSlots,
+        // Consume discount if used
+        persistentBuffs: { ...prev.persistentBuffs, shopDiscount: false }
       }));
+      
+      if (isDiscount) addFloatingText('半价优惠!', 'score');
+
     } else {
       alert('金币不足！');
     }
+  };
+
+  const checkShopRestock = (currentSold: number) => {
+      if (currentSold >= 10) {
+          const newShopSlots = player.shopSlots.map(slot => {
+              if (slot.soldOut) {
+                  return { item: getBlackMarketItem(), soldOut: false };
+              }
+              return slot;
+          });
+          const actuallyRestocked = newShopSlots.some((s, i) => s.soldOut !== player.shopSlots[i].soldOut);
+          if (actuallyRestocked) addFloatingText('黑市已补货!', 'score', 0, 0);
+          return { slots: newShopSlots, counter: 0 };
+      }
+      return { slots: player.shopSlots, counter: currentSold };
+  };
+
+  const sellItem = (item: Equipment) => {
+    if (player.equippedWeapon?.id === item.id || player.equippedArmor?.id === item.id) return alert('无法出售已装备的物品！');
+    
+    const { slots, counter } = checkShopRestock(player.itemsSoldSinceRestock + 1);
+
+    setPlayer(prev => ({ 
+        ...prev, 
+        gold: prev.gold + item.value, 
+        inventory: prev.inventory.filter(i => i.id !== item.id),
+        itemsSoldSinceRestock: counter,
+        shopSlots: slots
+    }));
+    
+    if (item.id === showResult?.id) setShowResult(null); 
+  };
+
+  const sellMaterial = (mat: Material) => {
+      // Find one instance to remove
+      const index = player.materials.findIndex(m => m.id === mat.id);
+      if (index === -1) return;
+
+      const newMaterials = [...player.materials];
+      newMaterials.splice(index, 1);
+      
+      const sellPrice = Math.floor(mat.price * 0.5);
+      const { slots, counter } = checkShopRestock(player.itemsSoldSinceRestock + 1);
+
+      setPlayer(prev => ({
+          ...prev,
+          gold: prev.gold + sellPrice,
+          materials: newMaterials,
+          itemsSoldSinceRestock: counter,
+          shopSlots: slots
+      }));
+      addFloatingText(`+${sellPrice}G`, 'score');
   };
 
   const unlockTalent = (talentId: string, cost: number) => {
@@ -389,7 +470,18 @@ const App: React.FC = () => {
   const startForgeSession = () => {
     const activeMaterials = forgeSlots.filter((s): s is Material => s !== null);
     if (activeMaterials.length === 0) return;
-    const session = createForgeSession(activeMaterials, player.level, player.unlockedTalents);
+    
+    // Check and consume Forge Bonus
+    let talents = player.unlockedTalents;
+    
+    const session = createForgeSession(activeMaterials, player.level, talents);
+    
+    if (player.persistentBuffs.forgeBonus) {
+        session.scoreMultiplier += 0.50;
+        session.logs = [`[女神眷顾] 品质倍率大幅提升 (+50%)!`, ...session.logs];
+        setPlayer(p => ({...p, persistentBuffs: {...p.persistentBuffs, forgeBonus: false}}));
+    }
+
     setForgeSession(session);
   };
 
@@ -435,37 +527,6 @@ const App: React.FC = () => {
     if (nextSession.status === 'FAILURE') {
       setTimeout(() => { setForgeSession(null); setForgeSlots([null, null, null]); }, 1500); 
     }
-  };
-
-  const sellItem = (item: Equipment) => {
-    if (player.equippedWeapon?.id === item.id || player.equippedArmor?.id === item.id) return alert('无法出售已装备的物品！');
-    
-    // Logic for Shop Restock
-    let newSoldCounter = player.itemsSoldSinceRestock + 1;
-    let newShopSlots = player.shopSlots;
-    let restocked = false;
-
-    if (newSoldCounter >= 10) {
-        newSoldCounter = 0;
-        newShopSlots = player.shopSlots.map(slot => {
-            if (slot.soldOut) {
-                restocked = true;
-                return { item: getBlackMarketItem(), soldOut: false };
-            }
-            return slot;
-        });
-        if (restocked) addFloatingText('黑市已补货!', 'score', 0, 0);
-    }
-
-    setPlayer(prev => ({ 
-        ...prev, 
-        gold: prev.gold + item.value, 
-        inventory: prev.inventory.filter(i => i.id !== item.id),
-        itemsSoldSinceRestock: newSoldCounter,
-        shopSlots: newShopSlots
-    }));
-    
-    if (item.id === showResult?.id) setShowResult(null); // Close modal if selling result
   };
 
   const equipItem = (item: Equipment) => {
@@ -521,6 +582,8 @@ const App: React.FC = () => {
         blessing: prepBlessing,
         streak: 0,
         starvationDebuff: false,
+        injuredDebuff: false,
+        dungeonBuffs: { rareDropBoost: false, deathProtection: false },
         log: [`你步入了深渊遗迹 (第${selectedStartFloor}层)...`], 
         isDead: false, currentEvent: '远征开始', lastHealDepth: selectedStartFloor,
         lastEventResult: null 
@@ -711,40 +774,399 @@ const App: React.FC = () => {
               }
           }
 
+          // MONSTER SCALING LOGIC (Exponential)
+          // Base: 85 HP, 8 ATK.
+          // Growth: HP x 1.20^Depth, ATK x 1.12^Depth
+          const getMonsterStats = (depth: number) => {
+              const hpBase = 85;
+              const atkBase = 8;
+              
+              const hp = Math.floor(hpBase * Math.pow(1.20, depth - 1));
+              const atk = Math.floor(atkBase * Math.pow(1.12, depth - 1));
+              
+              return { hp, atk };
+          };
+
           if (isBossStage) {
-            const monsterMaxHP = 150 + depthBoost * 35;
+            const stats = getMonsterStats(depthBoost);
+            const monsterMaxHP = Math.floor(stats.hp * 1.5); 
+            const monsterATK = Math.floor(stats.atk * 1.2);
+            
             addLog(`[警告] 第${nextDepth}关，首领房间！`);
             setEventResult('fa-dragon', 'BOSS 降临', `第 ${nextDepth} 层`, 'text-red-600');
             return {
               ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation,
               currentEvent: '首领房间', isProcessing: false,
-              battle: { monsterName: `【首领】毁灭领主 等级.${depthBoost}`, monsterMaxHP, monsterHP: monsterMaxHP, monsterATK: 15 + Math.floor(depthBoost * 5), isFinished: false, victory: false }
+              battle: { monsterName: `【首领】毁灭领主 等级.${depthBoost}`, monsterMaxHP, monsterHP: monsterMaxHP, monsterATK, isFinished: false, victory: false }
             };
           }
 
-          // --- EVENT WEIGHT LOGIC ---
-          // Weights: Search 50, Battle 30, Camp 10, Smith 10
-          let weights = { search: 0.5, battle: 0.3, camp: 0.1, smith: 0.1 };
-          
-          // Anti-Streak Logic
-          const lastEvent = prev.currentEvent;
-          if (lastEvent === '搜刮废墟' && prev.streak > 1) weights.search = 0.2; // Penalize search streak
-          if (lastEvent === '遭遇怪物' && prev.streak > 1) weights.battle = 0.1; // Penalize battle streak
-
-          // Normalize
-          const totalWeight = weights.search + weights.battle + weights.camp + weights.smith;
-          const roll = Math.random() * totalWeight;
+          // --- EVENT WEIGHT LOGIC (REVISED) ---
+          const isSpecialAllowed = !prev.currentEvent.startsWith('SPECIAL'); // Prevent consecutive special events
           
           let eventType = 'SEARCH';
-          let accum = weights.search;
           
-          if (roll < accum) eventType = 'SEARCH';
-          else if (roll < (accum += weights.battle)) eventType = 'BATTLE';
-          else if (roll < (accum += weights.camp)) eventType = 'CAMP';
-          else eventType = 'SMITH';
+          const roll = Math.random();
+          // Weights: 
+          // Search 35%, Battle 20%, 
+          // Interactions 20% (Vein, Herb, Corpse),
+          // Camp 10%, Smith 10%, Wagon 5%
+          
+          if (isSpecialAllowed && roll < 0.05) { // 5% Rare
+             // Pick one of the 4 rare special events
+             const specialRoll = Math.random();
+             if (specialRoll < 0.25) eventType = 'SPECIAL_ALTAR';
+             else if (specialRoll < 0.50) eventType = 'SPECIAL_CHEST';
+             else if (specialRoll < 0.75) eventType = 'SPECIAL_MINER';
+             else eventType = 'SPECIAL_RUNE';
+          } else {
+             const standardRoll = Math.random();
+             if (standardRoll < 0.35) eventType = 'SEARCH';
+             else if (standardRoll < 0.55) eventType = 'BATTLE';
+             else if (standardRoll < 0.75) {
+                 // Common Interactions Pool (20%)
+                 const sub = Math.random();
+                 if (sub < 0.33) eventType = 'COMMON_VEIN';
+                 else if (sub < 0.66) eventType = 'COMMON_HERB';
+                 else eventType = 'COMMON_CORPSE';
+             }
+             else if (standardRoll < 0.85) eventType = 'CAMP';
+             else if (standardRoll < 0.95) eventType = 'SMITH';
+             else eventType = 'WAGON';
+          }
 
-          // Force Camp/Smith Logic (Optional: Ensure they happen occasionally?)
-          // For now, simple weighted random is enough.
+          // Bias adjustments for streaks
+          if (prev.currentEvent === '搜刮废墟' && prev.streak > 1 && eventType === 'SEARCH') {
+              if (Math.random() < 0.4) eventType = 'BATTLE'; // Break streak
+          }
+          
+          // --- HANDLERS ---
+          
+          // ... (Previous Special Events: Altar, Chest, Miner, Rune - Keep them)
+          
+          if (eventType === 'SPECIAL_ALTAR') {
+               return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'SPECIAL_ALTAR', isProcessing: false,
+                  activeChoice: {
+                      title: '诅咒祭坛',
+                      desc: '一座散发着不祥红光的石制祭坛。上面刻着：“献上生命，换取力量。”',
+                      options: [
+                          {
+                              label: '献祭鲜血 (消耗30%生命)',
+                              style: 'text-red-500 border-red-900/50 bg-red-950/30',
+                              action: () => {
+                                  const hpCost = Math.floor(dungeon!.maxHP * 0.3);
+                                  if (dungeon!.currentHP <= hpCost) { alert('生命值不足以献祭！'); return; }
+                                  
+                                  const newMat = generateDungeonLoot(nextDepth + 30, Math.random() < 0.7 ? Quality.Refined : Quality.Rare);
+                                  handleLoot(newMat, 'MATERIAL');
+                                  
+                                  setDungeon(d => d ? {
+                                      ...d, currentHP: d.currentHP - hpCost, activeChoice: undefined,
+                                      log: [`献祭了 ${hpCost} 点生命。祭坛吐出了 ${newMat.name}。`, ...d.log]
+                                  } : null);
+                                  addFloatingText(`-${hpCost}`, 'player_damage');
+                              }
+                          },
+                          {
+                              label: '祈求财富 (消耗15%生命)',
+                              action: () => {
+                                  const hpCost = Math.floor(dungeon!.maxHP * 0.15);
+                                  if (dungeon!.currentHP <= hpCost) { alert('生命值不足！'); return; }
+                                  const gold = (nextDepth * 20) + 200;
+                                  
+                                  setDungeon(d => d ? {
+                                      ...d, currentHP: d.currentHP - hpCost, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined,
+                                      log: [`献祭了 ${hpCost} 点生命。获得了 ${gold} 金币。`, ...d.log]
+                                  } : null);
+                                  addFloatingText(`-${hpCost}`, 'player_damage');
+                              }
+                          },
+                          { label: '离开', action: () => setDungeon(d => d ? {...d, activeChoice: undefined} : null) }
+                      ]
+                  }
+               };
+          }
+
+          if (eventType === 'SPECIAL_CHEST') {
+               return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'SPECIAL_CHEST', isProcessing: false,
+                  activeChoice: {
+                      title: '贪婪宝箱',
+                      desc: '路中间放着一个镶金的华丽宝箱。它看起来太显眼了，甚至有点像是在...呼吸？',
+                      options: [
+                          {
+                              label: '直接打开 (50%惊喜 / 50%宝箱怪)',
+                              style: 'text-yellow-400',
+                              action: () => {
+                                  if (Math.random() < 0.5) {
+                                      const gold = (nextDepth * 15) + 150;
+                                      const mat = generateDungeonLoot(nextDepth + 10);
+                                      handleLoot(mat, 'MATERIAL');
+                                      setDungeon(d => d ? {...d, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined, log: [`运气不错！获得了 ${gold} 金币和 ${mat.name}。`, ...d.log]} : null);
+                                  } else {
+                                      const dmg = Math.floor(dungeon!.maxHP * 0.25);
+                                      addFloatingText(`-${dmg}`, 'player_damage');
+                                      const stats = getMonsterStats(nextDepth + 5); 
+                                      setDungeon(d => d ? {
+                                          ...d, currentHP: Math.max(1, d.currentHP - dmg), activeChoice: undefined,
+                                          log: [`宝箱突然张开大嘴咬了你一口！(-${dmg}生命)`, ...d.log],
+                                          battle: { monsterName: `贪婪宝箱怪`, monsterMaxHP: stats.hp, monsterHP: stats.hp, monsterATK: stats.atk, isFinished: false, victory: false }
+                                      } : null);
+                                  }
+                              }
+                          },
+                          {
+                              label: '尝试撬锁 (消耗1补给)',
+                              disabled: nextSupplies < 1,
+                              action: () => {
+                                  if (nextSupplies < 1) return;
+                                  const gold = (nextDepth * 10) + 100;
+                                  setDungeon(d => d ? {
+                                      ...d, supplies: d.supplies - 1, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined,
+                                      log: [`小心翼翼地打开了宝箱。获得了 ${gold} 金币。`, ...d.log]
+                                  } : null);
+                              }
+                          },
+                          { label: '无视', action: () => setDungeon(d => d ? {...d, activeChoice: undefined} : null) }
+                      ]
+                  }
+               };
+          }
+
+          if (eventType === 'SPECIAL_MINER') {
+              return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'SPECIAL_MINER', isProcessing: false,
+                  activeChoice: {
+                      title: '落难的矿工',
+                      desc: '一个浑身是伤的矿工靠在岩壁旁。“水...有吃的吗？我挖到了一些好东西...”',
+                      options: [
+                          {
+                              label: '给予补给 (消耗2补给)',
+                              disabled: nextSupplies < 2,
+                              action: () => {
+                                  if (nextSupplies < 2) return;
+                                  const mat1 = generateDungeonLoot(nextDepth + 10, Quality.Refined);
+                                  const mat2 = generateDungeonLoot(nextDepth + 10);
+                                  handleLoot(mat1, 'MATERIAL');
+                                  handleLoot(mat2, 'MATERIAL');
+                                  setDungeon(d => d ? {
+                                      ...d, supplies: d.supplies - 2, activeChoice: undefined,
+                                      log: [`矿工感激涕零，送给你 ${mat1.name} 和 ${mat2.name}。`, ...d.log]
+                                  } : null);
+                              }
+                          },
+                          {
+                              label: '趁火打劫 (获得金币但负伤)',
+                              style: 'text-red-400',
+                              action: () => {
+                                  const gold = 300;
+                                  setDungeon(d => d ? {
+                                      ...d, 
+                                      injuredDebuff: true, // Apply Debuff
+                                      loot: {...d.loot, gold: d.loot.gold + gold},
+                                      activeChoice: undefined,
+                                      log: [`你抢走了矿工的钱袋(${gold}G)，但在争斗中受了伤 (防御降低)。`, ...d.log]
+                                  } : null);
+                              }
+                          },
+                          { label: '离开', action: () => setDungeon(d => d ? {...d, activeChoice: undefined} : null) }
+                      ]
+                  }
+              };
+          }
+
+          if (eventType === 'SPECIAL_RUNE') {
+               return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'SPECIAL_RUNE', isProcessing: false,
+                  activeChoice: {
+                      title: '古老符文碑',
+                      desc: '一块刻满深奥图谱的石碑。盯着它看能领悟技艺，但会极度消耗精神和装备。',
+                      options: [
+                          {
+                              label: '临摹符文 (消耗装备20耐久)',
+                              disabled: !player.equippedWeapon && !player.equippedArmor,
+                              action: () => {
+                                  setPlayer(p => {
+                                      let w = p.equippedWeapon;
+                                      let a = p.equippedArmor;
+                                      if (w) w = { ...w, currentDurability: Math.max(0, w.currentDurability - 20) };
+                                      if (a) a = { ...a, currentDurability: Math.max(0, a.currentDurability - 20) };
+                                      return { ...p, equippedWeapon: w, equippedArmor: a };
+                                  });
+                                  
+                                  const exp = 300 + (nextDepth * 10);
+                                  gainExp(exp);
+                                  setDungeon(d => d ? {...d, activeChoice: undefined, log: [`装备受到了磨损，但你获得了 ${exp} 经验。`, ...d.log]} : null);
+                                  addFloatingText(`+${exp} XP`, 'exp');
+                                  addFloatingText(`装备磨损`, 'durability_loss');
+                              }
+                          },
+                          {
+                              label: '抚摸石碑 (消耗10%生命)',
+                              action: () => {
+                                   const hpCost = Math.floor(dungeon!.maxHP * 0.10);
+                                   if (dungeon!.currentHP <= hpCost) { alert('生命值不足！'); return; }
+                                   
+                                   setPlayer(p => ({
+                                       ...p,
+                                       equippedWeapon: p.equippedWeapon ? {...p.equippedWeapon, currentDurability: p.equippedWeapon.maxDurability} : null,
+                                       equippedArmor: p.equippedArmor ? {...p.equippedArmor, currentDurability: p.equippedArmor.maxDurability} : null
+                                   }));
+
+                                   setDungeon(d => d ? {
+                                      ...d, currentHP: d.currentHP - hpCost, activeChoice: undefined,
+                                      log: [`石碑的光芒修复了你的装备，但汲取了你的生命。`, ...d.log]
+                                  } : null);
+                                  addFloatingText(`-${hpCost}`, 'player_damage');
+                              }
+                          },
+                          { label: '离开', action: () => setDungeon(d => d ? {...d, activeChoice: undefined} : null) }
+                      ]
+                  }
+               };
+          }
+
+          // --- NEW COMMON EVENTS (Scheme A, B, C) ---
+
+          if (eventType === 'COMMON_VEIN') {
+              return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'COMMON_VEIN', isProcessing: false,
+                  activeChoice: {
+                      title: '可疑的矿脉',
+                      desc: '墙壁上有一块颜色异样的岩石，看起来像是稀有矿石，但非常坚硬。',
+                      options: [
+                          {
+                              label: '强行开采 (消耗武器10耐久)',
+                              disabled: !player.equippedWeapon || player.equippedWeapon.currentDurability < 10,
+                              action: () => {
+                                  setPlayer(p => p.equippedWeapon ? {...p, equippedWeapon: {...p.equippedWeapon, currentDurability: p.equippedWeapon.currentDurability - 10}} : p);
+                                  addFloatingText('武器磨损', 'durability_loss');
+                                  
+                                  if (Math.random() < 0.7) {
+                                      const newMat = generateDungeonLoot(nextDepth);
+                                      handleLoot(newMat, 'MATERIAL');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`开采成功！获得了 ${newMat.name}。`, ...d.log]} : null);
+                                  } else {
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: ['岩石碎裂了，什么都没得到。', ...d.log]} : null);
+                                  }
+                              }
+                          },
+                          { label: '离开', action: () => setDungeon(d => d ? {...d, activeChoice: undefined} : null) }
+                      ]
+                  }
+              };
+          }
+
+          if (eventType === 'COMMON_HERB') {
+              return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'COMMON_HERB', isProcessing: false,
+                  activeChoice: {
+                      title: '发光的草药丛',
+                      desc: '在阴暗角落里生长着几株发光的植物。可以食用或者采摘换钱。',
+                      options: [
+                          {
+                              label: '直接吞食 (随机效果)',
+                              action: () => {
+                                  const roll = Math.random();
+                                  if (roll < 0.6) {
+                                      // Heal
+                                      const heal = Math.floor(dungeon!.maxHP * 0.2);
+                                      setDungeon(d => d ? {...d, currentHP: Math.min(d.maxHP, d.currentHP + heal), activeChoice: undefined, log: [`吃下草药，感觉好多了。(生命+${heal})`, ...d.log]} : null);
+                                      addFloatingText(`+${heal}`, 'heal');
+                                  } else if (roll < 0.9) {
+                                      // XP
+                                      const xp = 50;
+                                      gainExp(xp);
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`精力充沛！(经验+${xp})`, ...d.log]} : null);
+                                      addFloatingText(`+${xp} XP`, 'exp');
+                                  } else {
+                                      // Poison
+                                      const dmg = Math.floor(dungeon!.maxHP * 0.1);
+                                      setDungeon(d => d ? {...d, currentHP: Math.max(1, d.currentHP - dmg), activeChoice: undefined, log: [`呕...这草有毒！(生命-${dmg})`, ...d.log]} : null);
+                                      addFloatingText(`-${dmg}`, 'player_damage');
+                                  }
+                              }
+                          },
+                          {
+                              label: '小心采摘 (作为商品)',
+                              action: () => {
+                                  const roll = Math.random();
+                                  let herbId = 'h_grass'; // Common
+                                  if (roll < 0.1) herbId = 'h_mandrake'; // Rare
+                                  else if (roll < 0.4) herbId = 'h_flower'; // Refined
+                                  
+                                  const herb = MATERIALS.find(m => m.id === herbId)!;
+                                  const herbItem = { ...herb, id: Math.random().toString() };
+                                  
+                                  handleLoot(herbItem, 'MATERIAL');
+                                  setDungeon(d => d ? {...d, activeChoice: undefined, log: [`小心翼翼地采摘了 ${herb.name}。`, ...d.log]} : null);
+                              }
+                          }
+                      ]
+                  }
+              };
+          }
+
+          if (eventType === 'COMMON_CORPSE') {
+              return {
+                  ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: 'COMMON_CORPSE', isProcessing: false,
+                  activeChoice: {
+                      title: '冒险者尸体',
+                      desc: '一具倒下的冒险者尸体。你可以搜刮他的遗物，或者将他安葬。',
+                      options: [
+                          {
+                              label: '搜身 (获得物品)',
+                              action: () => {
+                                  const typeRoll = Math.random();
+                                  if (typeRoll < 0.4) {
+                                      // Warrior: Equipment
+                                      const equip = generateEquipment(Math.random()>0.5?'WEAPON':'ARMOR', [Quality.Common, Quality.Refined], player.level);
+                                      handleLoot(equip, 'EQUIPMENT');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`从尸体上找到了一件 ${equip.name}。`, ...d.log]} : null);
+                                  } else if (typeRoll < 0.7) {
+                                      // Merchant: Gold/Supplies
+                                      const gold = 100 + (nextDepth * 10);
+                                      const sup = 1;
+                                      setDungeon(d => d ? {...d, supplies: d.supplies + sup, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined, log: [`找到了 ${gold} 金币和 ${sup} 份补给。`, ...d.log]} : null);
+                                  } else {
+                                      // Alchemist: Mat
+                                      const mat = generateDungeonLoot(nextDepth);
+                                      handleLoot(mat, 'MATERIAL');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`在背包里发现了 ${mat.name}。`, ...d.log]} : null);
+                                  }
+                              }
+                          },
+                          {
+                              label: '安葬 (消耗1补给, 善行)',
+                              disabled: nextSupplies < 1,
+                              action: () => {
+                                  if (nextSupplies < 1) return;
+                                  
+                                  // Random Good Deed
+                                  const deedRoll = Math.random();
+                                  let deedMsg = "女神注意到了你的善行。";
+                                  
+                                  if (deedRoll < 0.25) {
+                                      setPlayer(p => ({...p, persistentBuffs: {...p.persistentBuffs, shopDiscount: true}}));
+                                  } else if (deedRoll < 0.50) {
+                                      setPlayer(p => ({...p, persistentBuffs: {...p.persistentBuffs, forgeBonus: true}}));
+                                  } else if (deedRoll < 0.75) {
+                                      setDungeon(d => d ? {...d, dungeonBuffs: {...d.dungeonBuffs, rareDropBoost: true}} : null);
+                                  } else {
+                                      setDungeon(d => d ? {...d, dungeonBuffs: {...d.dungeonBuffs, deathProtection: true}} : null);
+                                  }
+
+                                  setDungeon(d => d ? {
+                                      ...d, supplies: d.supplies - 1, activeChoice: undefined,
+                                      log: [`你安葬了这位逝者。${deedMsg}`, ...d.log]
+                                  } : null);
+                              }
+                          }
+                      ]
+                  }
+              };
+          }
 
           if (eventType === 'CAMP') {
               return {
@@ -756,17 +1178,77 @@ const App: React.FC = () => {
                     desc: '一处尚有余温的篝火，看起来还算安全。',
                     options: [
                       { label: '休息 (恢复20%生命)', action: () => { setDungeon(d => d ? {...d, currentHP: Math.min(d.maxHP, d.currentHP + Math.floor(d.maxHP*0.2)), activeChoice: undefined, log: ['休息了一会儿，精神焕发。', ...d.log]} : null); }},
-                      { label: '搜寻 (30%得物品/70%无)', action: () => {
-                          if (Math.random() < 0.3) {
-                              const gold = 50 + nextDepth * 5;
-                              setDungeon(d => d ? {...d, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined, log: [`在帐篷里发现了 ${gold} 金币！`, ...d.log]} : null);
+                      { label: '搜寻 (惊喜概率UP!)', action: () => {
+                          const searchRoll = Math.random();
+                          if (searchRoll < 0.5) {
+                              // Found Nothing
+                              setDungeon(d => d ? {...d, activeChoice: undefined, log: ['只有一些灰烬...什么都没找到。', ...d.log]} : null);
                           } else {
-                              setDungeon(d => d ? {...d, activeChoice: undefined, log: ['什么都没找到...', ...d.log]} : null);
+                              // Found Something
+                              const jackpotRoll = Math.random();
+                              if (jackpotRoll < 0.05) { // 5% Jackpot
+                                  const jackpotType = Math.random();
+                                  if (jackpotType < 0.4) {
+                                      const gold = 500 + (nextDepth * 50);
+                                      setDungeon(d => d ? {...d, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined, log: [`[大惊喜] 在地毯下发现了藏宝袋！获得 ${gold} 金币！`, ...d.log]} : null);
+                                  } else if (jackpotType < 0.8) {
+                                      const mat = generateDungeonLoot(nextDepth + 30, Quality.Rare); // Guaranteed Rare
+                                      handleLoot(mat, 'MATERIAL');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`[大惊喜] 发现了传世材料：${mat.name}！`, ...d.log]} : null);
+                                  } else {
+                                      const equip = generateEquipment('WEAPON', [Quality.Rare, Quality.Rare, Quality.Rare], player.level + 2);
+                                      handleLoot(equip, 'EQUIPMENT');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`[大惊喜] 竟然有一把被遗忘的神兵：${equip.name}！`, ...d.log]} : null);
+                                  }
+                                  addFloatingText('大丰收!', 'score_crit');
+                              } else {
+                                  // Standard Loot
+                                  const standardType = Math.random();
+                                  if (standardType < 0.6) {
+                                      const gold = 30 + (nextDepth * 5);
+                                      setDungeon(d => d ? {...d, loot: {...d.loot, gold: d.loot.gold + gold}, activeChoice: undefined, log: [`在帐篷里发现了 ${gold} 金币。`, ...d.log]} : null);
+                                  } else if (standardType < 0.9) {
+                                      const mat = generateDungeonLoot(nextDepth);
+                                      handleLoot(mat, 'MATERIAL');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`找到了一些材料：${mat.name}。`, ...d.log]} : null);
+                                  } else {
+                                      const equip = generateEquipment(Math.random()>0.5?'WEAPON':'ARMOR', [Quality.Common, Quality.Common, Quality.Common], player.level);
+                                      handleLoot(equip, 'EQUIPMENT');
+                                      setDungeon(d => d ? {...d, activeChoice: undefined, log: [`捡到了一件旧装备：${equip.name}。`, ...d.log]} : null);
+                                  }
+                              }
                           }
                       }}
                     ]
                  }
               };
+          } else if (eventType === 'WAGON') {
+               return {
+                  ...baseState,
+                  depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation, currentEvent: '货运马车',
+                  isProcessing: false,
+                  activeChoice: {
+                     title: '翻倒的货运马车',
+                     desc: '一辆满载物资的马车翻倒在路边，周围散落着箱子。',
+                     options: [
+                        { label: '购买廉价补给 (2份/30G)', disabled: player.gold < 30, action: () => {
+                            if (player.gold < 30) return;
+                            setPlayer(p => ({...p, gold: p.gold - 30}));
+                            setDungeon(d => d ? {...d, supplies: d.supplies + 2, activeChoice: undefined, log: ['你买下了一些散落的补给。补给+2', ...d.log]} : null);
+                        }},
+                        { label: '翻找物资 (20%得材料)', action: () => {
+                            if (Math.random() < 0.2) {
+                                const newMat = generateDungeonLoot(nextDepth);
+                                handleLoot(newMat, 'MATERIAL');
+                                setDungeon(d => d ? {...d, activeChoice: undefined, log: [`你在箱子底下发现了 ${newMat.name}！`, ...d.log]} : null);
+                            } else {
+                                setDungeon(d => d ? {...d, activeChoice: undefined, log: ['只有一些烂木头...', ...d.log]} : null);
+                            }
+                        }},
+                        { label: '离开', action: () => setDungeon(d => d ? {...d, activeChoice: undefined} : null) }
+                     ]
+                  }
+               };
           } else if (eventType === 'SMITH') {
               const canPay = nextSupplies >= 1;
               return {
@@ -819,13 +1301,13 @@ const App: React.FC = () => {
                  }
               };
           } else if (eventType === 'BATTLE') {
-            const monsterMaxHP = 40 + depthBoost * 20;
+            const stats = getMonsterStats(depthBoost);
             addLog(`遭遇：${depthBoost}级怪物拦住了去路！`);
             setEventResult('fa-spider', '遭遇战', `${depthBoost}级 遗迹守卫`, 'text-orange-500');
             return {
               ...baseState, depth: nextDepth, currentHP: nextHP, supplies: nextSupplies, streak: nextStreak, starvationDebuff: nextStarvation,
               currentEvent: '遭遇怪物', isProcessing: false,
-              battle: { monsterName: `遗迹守卫 等级.${depthBoost}`, monsterMaxHP, monsterHP: monsterMaxHP, monsterATK: 8 + Math.floor(depthBoost * 3.5), isFinished: false, victory: false }
+              battle: { monsterName: `遗迹守卫 等级.${depthBoost}`, monsterMaxHP: stats.hp, monsterHP: stats.hp, monsterATK: stats.atk, isFinished: false, victory: false }
             };
           } else { // SEARCH
             const streakBonus = 1 + (nextStreak * DUNGEON_CONFIG.STREAK_BONUS_PCT);
@@ -862,8 +1344,13 @@ const App: React.FC = () => {
     const mATK = dungeon.battle.monsterATK;
     const pATK = totalStats.ATK;
     const pCRIT = totalStats.CRIT;
-    const pDEF = totalStats.DEF;
+    let pDEF = totalStats.DEF;
     const pLIFESTEAL = totalStats.LIFESTEAL;
+
+    // Apply Injured Debuff
+    if (dungeon.injuredDebuff) {
+        pDEF = Math.floor(pDEF * 0.7); // 30% Def Reduction
+    }
 
     const degradeEquipment = (isPlayerAttacking: boolean) => {
         setPlayer(prev => {
@@ -948,10 +1435,8 @@ const App: React.FC = () => {
 
       if (isBoss) {
           // Boss: Guaranteed Rare Weapon + Rare Material
-          const rareChanceBonus = Math.min(1.0, dungeon.depth / 30.0);
-          
           // Material: Always Rare for Boss
-          let validPool = MATERIALS.filter(m => m.quality === Quality.Rare);
+          let validPool = MATERIALS.filter(m => m.quality === Quality.Rare && !m.id.startsWith('h_')); // Exclude Herbs
           if (validPool.length === 0) validPool = MATERIALS;
           const mat = validPool[Math.floor(Math.random() * validPool.length)];
           newMat = { ...mat, id: Math.random().toString() };
@@ -961,7 +1446,7 @@ const App: React.FC = () => {
           // Mob: 100% Drop Rate. 85% Material, 15% Equipment.
           if (Math.random() < 0.15) {
               // Equipment
-              const q = getLootQualityByDepth(dungeon.depth);
+              const q = getLootQualityByDepth(dungeon.depth, dungeon.dungeonBuffs.rareDropBoost);
               const type = Math.random() > 0.5 ? 'WEAPON' : 'ARMOR';
               newItem = generateEquipment(type, [q, q, q], player.level);
           } else {
@@ -1019,6 +1504,10 @@ const App: React.FC = () => {
   };
 
   const handleDeath = () => { 
+      if (dungeon?.dungeonBuffs.deathProtection) {
+          withdraw(); // Keep loot
+          return;
+      }
       setPlayer(prev => ({ ...prev, equippedWeapon: null, equippedArmor: null, inventory: prev.inventory.filter(item => item.id !== prev.equippedWeapon?.id && item.id !== prev.equippedArmor?.id) })); 
       setDungeon(null); 
       setActiveTab('FORGE'); 
@@ -1133,8 +1622,10 @@ const App: React.FC = () => {
         {activeTab === 'SHOP' && (
            <ShopView 
               player={player}
+              groupedMaterials={groupedMaterials}
               onBuyMaterial={buyMaterial}
               onSellItem={sellItem}
+              onSellMaterial={sellMaterial}
            />
         )}
 

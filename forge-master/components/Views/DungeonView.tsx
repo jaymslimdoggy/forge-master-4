@@ -65,7 +65,7 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
     
     // Drop Rate Bonus Calculation (Visual Only)
     const rareChanceBonus = dungeon ? Math.min(1.0, dungeon.depth / 30.0) : 0;
-    const dropRateBonus = Math.floor(rareChanceBonus * 100);
+    const dropRateBonus = Math.floor(rareChanceBonus * 100) + (dungeon?.dungeonBuffs.rareDropBoost ? 50 : 0);
 
     // Helper to extract taunt safely - Fixed for Strict Null Checks
     const getDeathTaunt = () => {
@@ -201,6 +201,7 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
     }
 
     const taunt = getDeathTaunt();
+    const isDivineIntervention = dungeon.dungeonBuffs.deathProtection;
 
     return (
         <div className="absolute inset-0 z-50 bg-zinc-950 flex flex-col animate-fadeIn">
@@ -217,6 +218,13 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
                         <div className="bg-red-950/80 px-3 py-1 rounded border border-red-500/50 flex items-center gap-2 animate-pulse">
                             <i className="fas fa-exclamation-triangle text-red-500"></i>
                             <span className="text-red-400 font-bold text-sm">力竭</span>
+                        </div>
+                    )}
+                    {/* Injury Status */}
+                    {dungeon.injuredDebuff && (
+                        <div className="bg-orange-950/80 px-3 py-1 rounded border border-orange-500/50 flex items-center gap-2 animate-pulse">
+                            <i className="fas fa-crutch text-orange-500"></i>
+                            <span className="text-orange-400 font-bold text-sm">负伤</span>
                         </div>
                     )}
                 </div>
@@ -306,6 +314,15 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
                             </div>
                         </div>
                     )}
+                    {dungeon.injuredDebuff && (
+                        <div className="bg-orange-950/90 backdrop-blur border border-orange-500/50 px-3 py-2 rounded-xl shadow-lg flex items-start gap-3 max-w-[200px] animate-pulse">
+                            <div className="text-orange-500 text-xl mt-0.5"><i className="fas fa-crutch"></i></div>
+                            <div>
+                                <div className="text-xs font-black text-orange-400 uppercase tracking-wider">严重负伤</div>
+                                <div className="text-[10px] text-orange-300/80 leading-tight mt-0.5">防御力降低 30%<br/>请尽快撤离或治疗</div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -342,29 +359,38 @@ export const DungeonView: React.FC<DungeonViewProps> = ({
                             {!dungeon.battle.isStarted ? <button onClick={onStartBattle} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xl shadow-lg transition active:scale-95 uppercase tracking-widest border border-red-400/20">开始战斗</button> : dungeon.battle.isFinished ? <div className="flex gap-3">{dungeon.battle.victory ? <><button onClick={() => onProceedDungeon()} className="flex-[2] py-4 bg-green-600 hover:bg-green-500 text-white font-black rounded-xl text-xl shadow-lg transition active:scale-95 border border-green-400/20">继续探索 <i className="fas fa-arrow-right ml-2"></i></button><button onClick={onWithdraw} className="flex-1 py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-black rounded-xl text-lg shadow-lg transition active:scale-95 border border-yellow-400/20">撤退</button></> : <button onClick={onHandleDeath} className="w-full p-6 bg-zinc-950 hover:bg-zinc-900 text-red-500 rounded-2xl shadow-[0_0_30px_rgba(220,38,38,0.15)] transition active:scale-95 border-2 border-red-900/60 flex flex-col items-center gap-3 h-auto whitespace-normal group relative overflow-hidden"><div className="absolute inset-0 bg-red-900/10 group-hover:bg-red-900/20 transition-colors"></div><div className="text-3xl font-black uppercase relative z-10 flex items-center gap-3"><i className="fas fa-skull"></i> {taunt.title}</div><div className="text-lg font-bold text-zinc-500 italic leading-relaxed max-w-[95%] relative z-10 border-t border-red-900/30 pt-3 mt-1">"{taunt.quote}"</div><div className="text-xs text-red-800 mt-4 font-bold uppercase tracking-[0.2em] relative z-10 opacity-70 group-hover:opacity-100 transition-opacity">点击任意处离开</div></button>}</div> : <div className="text-center text-zinc-400 font-bold animate-pulse text-lg py-2">战斗进行中...</div>}
                         </div>
                     ) : dungeon.isDead ? (
-                        <div className="w-full max-w-lg bg-zinc-900/90 border border-red-900 rounded-3xl p-8 backdrop-blur shadow-2xl text-center animate-bounce-in relative overflow-hidden">
-                             <div className="absolute inset-0 bg-red-950/30 animate-pulse -z-10"></div>
-                             
-                             <div className="text-7xl text-red-600 mb-6 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]"><i className="fas fa-skull"></i></div>
-                             
-                             <h2 className="text-4xl font-black text-white mb-2 uppercase tracking-widest drop-shadow-md">
-                                 {taunt.title}
-                             </h2>
-                             
-                             <div className="bg-black/40 rounded-xl p-4 border border-red-900/50 mb-8">
-                                 <div className="text-red-400 font-bold text-lg mb-2">
-                                     {taunt.title}
-                                 </div>
-                                 <div className="text-zinc-400 text-sm italic">
-                                     "{taunt.quote}"
-                                 </div>
-                             </div>
-
-                             <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">战利品已全部遗失</div>
-
-                             <button onClick={onHandleDeath} className="w-full py-5 bg-gradient-to-r from-zinc-800 to-zinc-700 hover:from-zinc-700 hover:to-zinc-600 text-white font-black rounded-2xl text-xl shadow-lg transition active:scale-95 border border-zinc-600">
-                                 接受现实，返回城镇
-                             </button>
+                        <div className={`w-full max-w-lg border rounded-3xl p-8 backdrop-blur shadow-2xl text-center animate-bounce-in relative overflow-hidden ${isDivineIntervention ? 'bg-zinc-900/90 border-yellow-500' : 'bg-zinc-900/90 border-red-900'}`}>
+                             {isDivineIntervention ? (
+                                 // Divine Intervention UI
+                                 <>
+                                    <div className="absolute inset-0 bg-yellow-500/10 animate-pulse -z-10"></div>
+                                    <div className="text-7xl text-yellow-500 mb-6 drop-shadow-[0_0_15px_rgba(234,179,8,0.8)]"><i className="fas fa-hand-sparkles"></i></div>
+                                    <h2 className="text-4xl font-black text-white mb-2 uppercase tracking-widest drop-shadow-md">女神干涉</h2>
+                                    <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/50 mb-8">
+                                        <div className="text-yellow-400 font-bold text-lg mb-2">你的善行得到了回报</div>
+                                        <div className="text-zinc-400 text-sm italic">"即使在深渊之中，善良的光芒也不会熄灭..."</div>
+                                    </div>
+                                    <div className="text-xs font-bold text-green-400 uppercase tracking-widest mb-4">所有战利品已保留</div>
+                                    <button onClick={onHandleDeath} className="w-full py-5 bg-gradient-to-r from-yellow-700 to-yellow-600 hover:from-yellow-600 hover:to-yellow-500 text-white font-black rounded-2xl text-xl shadow-lg transition active:scale-95 border border-yellow-500">
+                                        安全返回
+                                    </button>
+                                 </>
+                             ) : (
+                                 // Standard Death UI
+                                 <>
+                                    <div className="absolute inset-0 bg-red-950/30 animate-pulse -z-10"></div>
+                                    <div className="text-7xl text-red-600 mb-6 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]"><i className="fas fa-skull"></i></div>
+                                    <h2 className="text-4xl font-black text-white mb-2 uppercase tracking-widest drop-shadow-md">{taunt.title}</h2>
+                                    <div className="bg-black/40 rounded-xl p-4 border border-red-900/50 mb-8">
+                                        <div className="text-red-400 font-bold text-lg mb-2">{taunt.title}</div>
+                                        <div className="text-zinc-400 text-sm italic">"{taunt.quote}"</div>
+                                    </div>
+                                    <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">战利品已全部遗失</div>
+                                    <button onClick={onHandleDeath} className="w-full py-5 bg-gradient-to-r from-zinc-800 to-zinc-700 hover:from-zinc-700 hover:to-zinc-600 text-white font-black rounded-2xl text-xl shadow-lg transition active:scale-95 border border-zinc-600">
+                                        接受现实，返回城镇
+                                    </button>
+                                 </>
+                             )}
                         </div>
                     ) : (
                         <div className="text-center animate-fadeIn w-full max-w-md">

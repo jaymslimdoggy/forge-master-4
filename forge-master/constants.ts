@@ -15,6 +15,11 @@ export const MATERIALS: Material[] = [
   { id: 'm_gold_2', quality: Quality.Refined, name: '耀斑赤金', price: 200, effectType: 'SCORE_MULT', effectValue: 0.25, description: '品质倍率 +25%' },
   { id: 'm_gold_3', quality: Quality.Rare, name: '日核纯金', price: 3000, effectType: 'SCORE_MULT', effectValue: 0.50, description: '品质倍率 +50%', isRareBase: true },
 
+  // --- 🌿 药草 (Herbs) - Only for Selling ---
+  { id: 'h_grass', quality: Quality.Common, name: '止血草', price: 100, effectType: 'NONE', effectValue: 0, description: '普通的药草，有些许药用价值。', isDungeonOnly: true },
+  { id: 'h_flower', quality: Quality.Refined, name: '月光花', price: 500, effectType: 'NONE', effectValue: 0, description: '只在幽暗处绽放，深受贵族喜爱。', isDungeonOnly: true },
+  { id: 'h_mandrake', quality: Quality.Rare, name: '黄金曼陀罗', price: 3000, effectType: 'NONE', effectValue: 0, description: '极其稀有的魔法植物，根部如黄金般闪耀。', isDungeonOnly: true },
+
   // --- 🔥 红温流 (Overheat) ---
   // A. 熔岩之心 (Magma Core) - 温度转分
   { id: 's_magma_1', quality: Quality.Common, name: '微热煤块', price: 300, effectType: 'SPECIAL_HEAT_TO_SCORE', effectValue: 0.5, description: '每 1°C 温度提供 +0.5 基础分', isDungeonOnly: true },
@@ -22,9 +27,14 @@ export const MATERIALS: Material[] = [
   { id: 's_magma_3', quality: Quality.Rare, name: '太阳内核', price: 2500, effectType: 'SPECIAL_HEAT_TO_SCORE', effectValue: 2.0, description: '每 1°C +2 分，满温时额外 +50', isDungeonOnly: true },
   
   // B. 黑曜石皮 (Obsidian Skin) - 抗热/免碎
-  { id: 's_obsidian_1', quality: Quality.Common, name: '焦黑石片', price: 300, effectType: 'SPECIAL_HEAT_RESIST', effectValue: 0.5, description: '过热区消耗惩罚减半(200%->150%)', isDungeonOnly: true },
-  { id: 's_obsidian_2', quality: Quality.Refined, name: '硬化黑曜石', price: 800, effectType: 'SPECIAL_HEAT_RESIST', effectValue: 0.8, description: '过热区消耗惩罚大幅降低(->120%)', isDungeonOnly: true },
+  { id: 's_obsidian_1', quality: Quality.Common, name: '焦黑石片', price: 300, effectType: 'SPECIAL_HEAT_RESIST', effectValue: 0.5, description: '过热区消耗惩罚减半', isDungeonOnly: true },
+  { id: 's_obsidian_2', quality: Quality.Refined, name: '硬化黑曜石', price: 800, effectType: 'SPECIAL_HEAT_RESIST', effectValue: 0.8, description: '过热区消耗惩罚大幅降低', isDungeonOnly: true },
   { id: 's_obsidian_3', quality: Quality.Rare, name: '永恒黑甲', price: 2500, effectType: 'SPECIAL_HEAT_RESIST', effectValue: 1.0, description: '无视过热惩罚，且非打磨不碎裂', isDungeonOnly: true },
+
+  // C. 地狱硫磺 (Sulfur) - 淬火升温 (NEW)
+  { id: 's_sulfur_1', quality: Quality.Common, name: '燃烧硫磺', price: 300, effectType: 'SPECIAL_QUENCH_HEAT_RISE', effectValue: 10, description: '【淬火】不再降温，改为+10温度，仍恢复耐久', isDungeonOnly: true },
+  { id: 's_sulfur_2', quality: Quality.Refined, name: '地狱硫磺', price: 800, effectType: 'SPECIAL_QUENCH_HEAT_RISE', effectValue: 15, description: '【淬火】改为+15温度，仍恢复耐久', isDungeonOnly: true },
+  { id: 's_sulfur_3', quality: Quality.Rare, name: '恶魔余烬', price: 2500, effectType: 'SPECIAL_QUENCH_HEAT_RISE', effectValue: 20, description: '【淬火】改为+20温度，耐久恢复量+10', isDungeonOnly: true },
 
   // --- ❄️ 控温流 (Cryo) ---
   // A. 冰棱镜 (Frost Prism) - 淬火专注
@@ -37,11 +47,16 @@ export const MATERIALS: Material[] = [
   { id: 's_mithril_2', quality: Quality.Refined, name: '高纯秘银', price: 800, effectType: 'SPECIAL_LIGHT_NO_HEAT', effectValue: 1.0, description: '轻击不升温，但消耗 +1 耐久', isDungeonOnly: true },
   { id: 's_mithril_3', quality: Quality.Rare, name: '超导秘银', price: 2500, effectType: 'SPECIAL_LIGHT_NO_HEAT', effectValue: 2.0, description: '轻击完全不升温且无额外消耗', isDungeonOnly: true },
 
+  // C. 永冻冰魄 (Zero Core) - 低温重锤 (NEW)
+  { id: 's_zero_1', quality: Quality.Common, name: '干冰', price: 300, effectType: 'SPECIAL_ZERO_TEMP_BUFF', effectValue: 0.3, description: '温度低于10°C时，重锤消耗 -30%且不升温', isDungeonOnly: true },
+  { id: 's_zero_2', quality: Quality.Refined, name: '液氮罐', price: 800, effectType: 'SPECIAL_ZERO_TEMP_BUFF', effectValue: 0.5, description: '温度低于10°C时，重锤消耗 -50%且不升温', isDungeonOnly: true },
+  { id: 's_zero_3', quality: Quality.Rare, name: '永冻冰魄', price: 2500, effectType: 'SPECIAL_ZERO_TEMP_BUFF', effectValue: 0.8, description: '温度低于10°C时，重锤消耗 -80%且不升温', isDungeonOnly: true },
+
   // --- ⚡ 连击流 (Combo) ---
   // A. 回响晶 (Echo Crystal) - 连击回血回气
-  { id: 's_echo_1', quality: Quality.Common, name: '共鸣碎片', price: 300, effectType: 'SPECIAL_COMBO_REGEN', effectValue: 3, description: '触发【连击】时恢复 3 耐久', isDungeonOnly: true },
-  { id: 's_echo_2', quality: Quality.Refined, name: '回响晶体', price: 800, effectType: 'SPECIAL_COMBO_REGEN', effectValue: 5.5, description: '连击回 5 耐久，50% 概率 +1 专注', isDungeonOnly: true },
-  { id: 's_echo_3', quality: Quality.Rare, name: '天籁之音', price: 2500, effectType: 'SPECIAL_COMBO_REGEN', effectValue: 8.9, description: '连击回 8 耐久，必定 +1 专注', isDungeonOnly: true },
+  { id: 's_echo_1', quality: Quality.Common, name: '共鸣碎片', price: 300, effectType: 'SPECIAL_COMBO_REGEN', effectValue: 3, description: '触发【连击】(重锤后接轻击)时，回复 3 耐久', isDungeonOnly: true },
+  { id: 's_echo_2', quality: Quality.Refined, name: '回响晶体', price: 800, effectType: 'SPECIAL_COMBO_REGEN', effectValue: 5.5, description: '连击回复 5 耐久，50% 概率 +1 专注', isDungeonOnly: true },
+  { id: 's_echo_3', quality: Quality.Rare, name: '天籁之音', price: 2500, effectType: 'SPECIAL_COMBO_REGEN', effectValue: 8.9, description: '连击回复 8 耐久，必定 +1 专注', isDungeonOnly: true },
 
   // B. 疾风之羽 (Gale Feather) - 轻击双重打击 (NEW)
   { id: 's_feather_1', quality: Quality.Common, name: '飞鸟之羽', price: 300, effectType: 'SPECIAL_LIGHT_MULTIHIT', effectValue: 0.2, description: '轻击 20% 概率触发双重打击(收益x2)', isDungeonOnly: true },
@@ -61,13 +76,14 @@ export const MATERIALS: Material[] = [
 
   // --- 🎲 特殊 (Special) ---
   // A. 金刚尘 (Diamond Dust) - 打磨
+  // NERFED PROBABILITIES to align with 80% Cap
   { id: 's_diamond_1', quality: Quality.Common, name: '金刚砂', price: 300, effectType: 'SPECIAL_POLISH_BUFF', effectValue: 1, description: '【打磨】基础分 +50', isDungeonOnly: true },
-  { id: 's_diamond_2', quality: Quality.Refined, name: '工业钻', price: 800, effectType: 'SPECIAL_POLISH_BUFF', effectValue: 2, description: '【打磨】30% 概率不消耗耐久', isDungeonOnly: true },
-  { id: 's_diamond_3', quality: Quality.Rare, name: '星辰之尘', price: 2500, effectType: 'SPECIAL_POLISH_BUFF', effectValue: 3, description: '【打磨】60% 概率免耗，分+100', isDungeonOnly: true },
+  { id: 's_diamond_2', quality: Quality.Refined, name: '工业钻', price: 800, effectType: 'SPECIAL_POLISH_BUFF', effectValue: 2, description: '【打磨】20% 概率不消耗耐久', isDungeonOnly: true },
+  { id: 's_diamond_3', quality: Quality.Rare, name: '星辰之尘', price: 2500, effectType: 'SPECIAL_POLISH_BUFF', effectValue: 3, description: '【打磨】30% 概率免耗，分+100', isDungeonOnly: true },
 
   // B. 幸运猫眼 (Cat's Eye) - 奇迹
-  { id: 's_cat_1', quality: Quality.Common, name: '玻璃珠', price: 300, effectType: 'SPECIAL_MIRACLE', effectValue: 0.05, description: '5% 触发奇迹(免单+双倍分)', isDungeonOnly: true },
-  { id: 's_cat_2', quality: Quality.Refined, name: '蛋白石', price: 800, effectType: 'SPECIAL_MIRACLE', effectValue: 0.10, description: '10% 触发奇迹(免单+双倍分)', isDungeonOnly: true },
+  { id: 's_cat_1', quality: Quality.Common, name: '玻璃珠', price: 300, effectType: 'SPECIAL_MIRACLE', effectValue: 0.05, description: '5% 触发奇迹(本次消耗0耐久且双倍分)', isDungeonOnly: true },
+  { id: 's_cat_2', quality: Quality.Refined, name: '蛋白石', price: 800, effectType: 'SPECIAL_MIRACLE', effectValue: 0.10, description: '10% 触发奇迹(本次消耗0耐久且双倍分)', isDungeonOnly: true },
   { id: 's_cat_3', quality: Quality.Rare, name: '命运之眼', price: 3000, effectType: 'SPECIAL_MIRACLE', effectValue: 0.15, description: '15% 触发奇迹，且额外回复 5 耐久', isDungeonOnly: true },
 ];
 
@@ -121,14 +137,14 @@ export const HEAT_CONFIG = {
     OVERHEAT_COST_MULT: 2.0, // Punishing cost
 };
 
-// Reduced progress to extend gameplay loop
+// Adjusted Base Scores for new Level Scaling Formula
 export const FORGE_ACTIONS = {
   LIGHT: {
     name: '轻击',
     baseCost: 5,
     heatAdd: 10,
     progressRange: [8, 12], 
-    scoreRange: [15, 25], 
+    scoreRange: [10, 15], // Reduced base, relies on level scaling
     description: '小幅升温，积攒专注'
   },
   HEAVY: {
@@ -136,7 +152,7 @@ export const FORGE_ACTIONS = {
     baseCost: 15, 
     heatAdd: 25,
     progressRange: [12, 18], 
-    scoreRange: [50, 80], 
+    scoreRange: [30, 50], // Reduced base, relies on level scaling
     description: '大幅升温，消耗专注'
   },
   QUENCH: {
@@ -148,10 +164,10 @@ export const FORGE_ACTIONS = {
   },
   POLISH: {
     name: '打磨',
-    baseCostMax: 10, // Initial Max Cost
-    costGrowth: 5,   // Max cost increases by 5 per use
-    baseScore: 150,  // Base Score per hit
-    scoreGrowth: 50, // Score increases by 50 per use
+    baseCostMax: 10, // Base start
+    costGrowth: 5,   // Base growth (Note: Logic now uses Exponential)
+    baseScore: 100,  
+    scoreGrowth: 50, 
     description: '消耗随机耐久，风险递增'
   }
 };
